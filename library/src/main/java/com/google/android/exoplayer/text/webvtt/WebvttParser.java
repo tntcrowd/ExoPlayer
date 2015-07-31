@@ -196,11 +196,17 @@ public final class WebvttParser implements SubtitleParser {
 
       // parse text
       textBuilder.setLength(0);
-      while ((line = webvttData.readLine()) != null && !line.isEmpty()) {
-        if (textBuilder.length() > 0) {
-          textBuilder.append("<br>");
-        }
+
+      // parse text - allow one empty line
+      line = webvttData.readLine();
+      if (line != null) {
         textBuilder.append(line.trim());
+      }
+      while (((line = webvttData.readLine()) != null) && (!line.isEmpty())) {
+        if (textBuilder.length() > 0) {
+        textBuilder.append("<br>");
+      }
+      textBuilder.append(line.trim());
       }
       cueText = Html.fromHtml(textBuilder.toString());
 

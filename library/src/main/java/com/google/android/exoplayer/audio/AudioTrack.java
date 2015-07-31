@@ -30,6 +30,8 @@ import android.os.ConditionVariable;
 import android.os.SystemClock;
 import android.util.Log;
 
+import org.vinuxproject.sonic.Sonic;
+
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 
@@ -175,6 +177,7 @@ public final class AudioTrack {
   private android.media.AudioTrack keepSessionIdAudioTrack;
 
   private android.media.AudioTrack audioTrack;
+  private Sonic sonic;
   private int sampleRate;
   private int channelConfig;
   private int encoding;
@@ -196,8 +199,11 @@ public final class AudioTrack {
   private long resumeSystemTimeUs;
   private long latencyUs;
   private float volume;
+  private float speed = 1.0f;
 
+  private byte[] sonicBuffer;
   private byte[] temporaryBuffer;
+  private ByteBuffer nonBlockingTemporaryBuffer;
   private int temporaryBufferOffset;
   private int temporaryBufferSize;
 
@@ -497,18 +503,18 @@ public final class AudioTrack {
 
       // This is the first time we've seen this {@code buffer}.
       // Note: presentationTimeUs corresponds to the end of the sample, not the start.
-      long bufferStartTime = presentationTimeUs - framesToDurationUs(bytesToFrames(size));
+      long bufferStartTime = presentationTimeUs - framesToDurationUs(bytesToFrames(size) * speed);
       if (startMediaTimeState == START_NOT_SET) {
         startMediaTimeUs = Math.max(0, bufferStartTime);
         startMediaTimeState = START_IN_SYNC;
       } else {
         // Sanity check that bufferStartTime is consistent with the expected value.
         long expectedBufferStartTime = startMediaTimeUs
-            + framesToDurationUs(bytesToFrames(submittedBytes));
+                + framesToDurationUs(bytesToFrames(submittedBytes) * speed);
         if (startMediaTimeState == START_IN_SYNC
-            && Math.abs(expectedBufferStartTime - bufferStartTime) > 200000) {
+                && Math.abs(expectedBufferStartTime - bufferStartTime) > 200000) {
           Log.e(TAG, "Discontinuity detected [expected " + expectedBufferStartTime + ", got "
-              + bufferStartTime + "]");
+                  + bufferStartTime + "]");
           startMediaTimeState = START_NEED_SYNC;
         }
         if (startMediaTimeState == START_NEED_SYNC) {
@@ -521,16 +527,38 @@ public final class AudioTrack {
       }
     }
 
+    if(sonic == null){
+      final int numChannels;
+      if(channelConfig == AudioFormat.CHANNEL_OUT_MONO) {
+        numChannels = 1;
+      } else if(channelConfig == AudioFormat.CHANNEL_OUT_STEREO) {
+        numChannels = 2;
+      } else{
+        numChannels = 1;
+        Log.e(TAG, "Surround channels are not supported at this time");
+      }
+      sonic = new Sonic(sampleRate, numChannels);
+      sonic.setSpeed(speed);
+    }
+
     if (temporaryBufferSize == 0) {
       temporaryBufferSize = size;
       buffer.position(offset);
-      if (Util.SDK_INT < 21) {
-        // Copy {@code buffer} into {@code temporaryBuffer}.
-        if (temporaryBuffer == null || temporaryBuffer.length < size) {
-          temporaryBuffer = new byte[size];
-        }
-        buffer.get(temporaryBuffer, 0, size);
-        temporaryBufferOffset = 0;
+      if(sonicBuffer == null || sonicBuffer.length < size){
+        sonicBuffer = new byte[size];
+      }
+      buffer.get(sonicBuffer, 0, size);
+      sonic.putBytes(sonicBuffer, size);
+
+      temporaryBufferSize = sonic.availableBytes();
+      if(temporaryBuffer == null || temporaryBuffer.length < temporaryBufferSize){
+        temporaryBuffer = new byte[temporaryBufferSize];
+      }
+      sonic.receiveBytes(temporaryBuffer, temporaryBufferSize);
+      temporaryBufferOffset = 0;
+
+      if(Util.SDK_INT >= 21){
+        nonBlockingTemporaryBuffer = ByteBuffer.wrap(temporaryBuffer);
       }
     }
 
@@ -548,7 +576,7 @@ public final class AudioTrack {
         }
       }
     } else {
-      bytesWritten = writeNonBlockingV21(audioTrack, buffer, temporaryBufferSize);
+      bytesWritten = writeNonBlockingV21(audioTrack, nonBlockingTemporaryBuffer, temporaryBufferSize);
     }
 
     if (bytesWritten < 0) {
@@ -800,12 +828,12 @@ public final class AudioTrack {
     }
   }
 
-  private long framesToDurationUs(long frameCount) {
-    return (frameCount * C.MICROS_PER_SECOND) / sampleRate;
+  private long framesToDurationUs(float frameCount) {
+    return (long) ((frameCount * C.MICROS_PER_SECOND) / speed /sampleRate);
   }
 
   private long durationUsToFrames(long durationUs) {
-    return (durationUs * sampleRate) / C.MICROS_PER_SECOND;
+    return (long) (durationUs * sampleRate * speed / C.MICROS_PER_SECOND);
   }
 
   private void resetSyncParams() {
@@ -829,6 +857,16 @@ public final class AudioTrack {
       return C.ENCODING_E_AC3;
     }
     return AudioFormat.ENCODING_INVALID;
+  }
+  public void setPlaybackSpeed(float speed){
+    this.speed = speed;
+    if(sonic != null){
+      sonic.setSpeed(speed);
+    }
+  }
+
+  public float getPlaybackSpeed(){
+    return speed;
   }
 
   /**

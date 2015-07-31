@@ -448,4 +448,11 @@ public interface ExoPlayer {
    */
   public int getBufferedPercentage();
 
+  /**
+   * Sets specified Playback speed.
+   *
+   * @param speed
+   */
+  public void setPlaybackSpeed(float speed);
+
 }

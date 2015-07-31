@@ -178,4 +178,8 @@ public final class MetadataTrackRenderer<T> extends SampleSourceTrackRenderer im
     metadataRenderer.onMetadata(metadata);
   }
 
+  @Override
+  protected void setPlaybackSpeed(float speed) throws ExoPlaybackException {
+    //do nothing
+  }
 }
