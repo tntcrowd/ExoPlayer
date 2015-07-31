@@ -351,4 +351,8 @@ public final class Eia608TrackRenderer extends SampleSourceTrackRenderer impleme
     return sampleHolder.timeUs != C.UNKNOWN_TIME_US;
   }
 
+  @Override
+  protected void setPlaybackSpeed(float speed) throws ExoPlaybackException {
+    //do nothing
+  }
 }

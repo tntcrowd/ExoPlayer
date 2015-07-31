@@ -634,4 +634,8 @@ public class MediaCodecVideoTrackRenderer extends MediaCodecTrackRenderer {
     droppedFrameAccumulationStartTimeMs = now;
   }
 
+  @Override
+  protected void setPlaybackSpeed(float speed) throws ExoPlaybackException {
+    //do nothing
+  }
 }

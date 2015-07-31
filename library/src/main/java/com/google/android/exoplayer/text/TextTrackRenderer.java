@@ -322,4 +322,8 @@ public final class TextTrackRenderer extends SampleSourceTrackRenderer implement
     return -1;
   }
 
+  @Override
+  protected void setPlaybackSpeed(float speed) throws ExoPlaybackException {
+    //do nothing
+  }
 }

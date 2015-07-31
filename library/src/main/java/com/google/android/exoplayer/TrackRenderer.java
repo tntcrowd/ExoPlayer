@@ -372,4 +372,12 @@ public abstract class TrackRenderer implements ExoPlayerComponent {
     // Do nothing.
   }
 
+  /**
+   * Sets specified Playback speed.
+   *
+   * @param speed
+   * @throws ExoPlaybackException
+   */
+  protected abstract void setPlaybackSpeed(float speed) throws ExoPlaybackException;
+
 }

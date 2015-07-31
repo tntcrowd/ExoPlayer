@@ -58,6 +58,7 @@ import java.util.concurrent.atomic.AtomicInteger;
   private static final int MSG_DO_SOME_WORK = 7;
   private static final int MSG_SET_RENDERER_SELECTED_TRACK = 8;
   private static final int MSG_CUSTOM = 9;
+  private static final int MSG_SPEED = 10;
 
   private static final int PREPARE_INTERVAL_MS = 10;
   private static final int RENDERING_INTERVAL_MS = 10;
@@ -231,6 +232,10 @@ import java.util.concurrent.atomic.AtomicInteger;
         }
         case MSG_SET_RENDERER_SELECTED_TRACK: {
           setRendererSelectedTrackInternal(msg.arg1, msg.arg2);
+          return true;
+        }
+        case MSG_SPEED: {
+          setPlaybackSpeedInternal(((Float)msg.obj).floatValue());
           return true;
         }
         default:
@@ -652,6 +657,17 @@ import java.util.concurrent.atomic.AtomicInteger;
   private void ensureStopped(TrackRenderer renderer) throws ExoPlaybackException {
     if (renderer.getState() == TrackRenderer.STATE_STARTED) {
       renderer.stop();
+    }
+  }
+
+  public void setPlaybackSpeed(float speed){
+    handler.obtainMessage(MSG_SPEED, new Float(speed)).sendToTarget();
+  }
+
+  private void setPlaybackSpeedInternal(float speed) throws ExoPlaybackException {
+    for(int i = 0; i < enabledRenderers.size(); i++){
+      TrackRenderer renderer = enabledRenderers.get(i);
+      renderer.setPlaybackSpeed(speed);
     }
   }
 

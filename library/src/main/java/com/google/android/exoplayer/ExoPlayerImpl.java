@@ -245,4 +245,8 @@ import java.util.concurrent.CopyOnWriteArraySet;
     }
   }
 
+  @Override
+  public void setPlaybackSpeed(float speed) {
+    internalPlayer.setPlaybackSpeed(speed);
+  }
 }

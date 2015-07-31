@@ -26,6 +26,7 @@ import android.media.AudioManager;
 import android.media.MediaCodec;
 import android.media.audiofx.Virtualizer;
 import android.os.Handler;
+import android.util.Log;
 
 import java.nio.ByteBuffer;
 
@@ -272,8 +273,7 @@ public class MediaCodecAudioTrackRenderer extends MediaCodecTrackRenderer implem
 
   @Override
   protected boolean isReady() {
-    return audioTrack.hasPendingData()
-        || (super.isReady() && getSourceState() == SOURCE_STATE_READY_READ_MAY_FAIL);
+    return audioTrack.hasPendingData() || super.isReady();
   }
 
   @Override
@@ -405,4 +405,8 @@ public class MediaCodecAudioTrackRenderer extends MediaCodecTrackRenderer implem
     }
   }
 
+  @Override
+  protected void setPlaybackSpeed(float speed) throws ExoPlaybackException {
+    audioTrack.setPlaybackSpeed(speed);
+  }
 }

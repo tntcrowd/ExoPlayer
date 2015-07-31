@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 apply plugin: 'com.android.library'
-apply plugin: 'bintray-release'
 
 android {
     compileSdkVersion 22
@@ -71,6 +70,7 @@ android.libraryVariants.all { variant ->
         exclude '**/R.java'
     }
 }
+<<<<<<< HEAD
 
 publish {
     repoName = 'exoplayer'
@@ -81,3 +81,5 @@ publish {
     description = 'The ExoPlayer library.'
     website = 'https://github.com/google/ExoPlayer'
 }
+=======
+>>>>>>> speed controllable ExoPlayer
