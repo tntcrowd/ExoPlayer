@@ -407,6 +407,7 @@ public class MediaCodecAudioTrackRenderer extends MediaCodecTrackRenderer implem
 
   @Override
   protected void setPlaybackSpeed(float speed) throws ExoPlaybackException {
+    audioTrack.reset();
     audioTrack.setPlaybackSpeed(speed);
   }
 }

@@ -365,7 +365,7 @@ public final class AudioTrack {
       }
     }
 
-    audioTrackUtil.reconfigure(audioTrack, isPassthrough());
+    audioTrackUtil.reconfigure(audioTrack, speed, isPassthrough());
     setAudioTrackVolume();
 
     return sessionId;
@@ -669,7 +669,7 @@ public final class AudioTrack {
       // AudioTrack.release can take some time, so we call it on a background thread.
       final android.media.AudioTrack toRelease = audioTrack;
       audioTrack = null;
-      audioTrackUtil.reconfigure(null, false);
+      audioTrackUtil.reconfigure(null, 1.0f, false);
       releasingConditionVariable.close();
       new Thread() {
         @Override
@@ -723,7 +723,7 @@ public final class AudioTrack {
       return;
     }
     long systemClockUs = System.nanoTime() / 1000;
-    if (systemClockUs - lastPlayheadSampleTimeUs >= MIN_PLAYHEAD_OFFSET_SAMPLE_INTERVAL_US) {
+    if (systemClockUs - lastPlayheadSampleTimeUs >= MIN_PLAYHEAD_OFFSET_SAMPLE_INTERVAL_US * speed) {
       // Take a new sample and update the smoothed offset between the system clock and the playhead.
       playheadOffsets[nextPlayheadOffsetIndex] = playbackPositionUs - systemClockUs;
       nextPlayheadOffsetIndex = (nextPlayheadOffsetIndex + 1) % MAX_PLAYHEAD_OFFSET_COUNT;
@@ -737,10 +737,9 @@ public final class AudioTrack {
       }
     }
 
-    // Don't sample the timestamp and latency if this is a passthrough AudioTrack, as the returned
-    // values cause audio/video synchronization to be incorrect.
-    if (!isPassthrough()
-        && systemClockUs - lastTimestampSampleTimeUs >= MIN_TIMESTAMP_SAMPLE_INTERVAL_US) {
+    // Don't sample the timestamp and latency if this is an AC-3 passthrough AudioTrack, as the
+    // returned values cause audio/video synchronization to be incorrect.
+    if (!isPassthrough() && systemClockUs - lastTimestampSampleTimeUs >= MIN_TIMESTAMP_SAMPLE_INTERVAL_US * speed) {
       audioTimestampSet = audioTrackUtil.updateTimestamp();
       if (audioTimestampSet) {
         // Perform sanity checks on the timestamp.
@@ -749,7 +748,7 @@ public final class AudioTrack {
         if (audioTimestampUs < resumeSystemTimeUs) {
           // The timestamp corresponds to a time before the track was most recently resumed.
           audioTimestampSet = false;
-        } else if (Math.abs(audioTimestampUs - systemClockUs) > MAX_AUDIO_TIMESTAMP_OFFSET_US) {
+        } else if (Math.abs(audioTimestampUs - systemClockUs) > MAX_AUDIO_TIMESTAMP_OFFSET_US * speed) {
           // The timestamp time base is probably wrong.
           String message = "Spurious audio timestamp (system clock mismatch): "
               + audioTimestampFramePosition + ", " + audioTimestampUs + ", " + systemClockUs + ", "
@@ -760,7 +759,7 @@ public final class AudioTrack {
           Log.w(TAG, message);
           audioTimestampSet = false;
         } else if (Math.abs(framesToDurationUs(audioTimestampFramePosition) - playbackPositionUs)
-            > MAX_AUDIO_TIMESTAMP_OFFSET_US) {
+            > MAX_AUDIO_TIMESTAMP_OFFSET_US * speed) {
           // The timestamp frame position is probably wrong.
           String message = "Spurious audio timestamp (frame position mismatch): "
               + audioTimestampFramePosition + ", " + audioTimestampUs + ", " + systemClockUs + ", "
@@ -829,11 +828,11 @@ public final class AudioTrack {
   }
 
   private long framesToDurationUs(float frameCount) {
-    return (long) ((frameCount * C.MICROS_PER_SECOND) / speed /sampleRate);
+    return (long) ((frameCount * C.MICROS_PER_SECOND) / sampleRate);
   }
 
   private long durationUsToFrames(long durationUs) {
-    return (long) (durationUs * sampleRate * speed / C.MICROS_PER_SECOND);
+    return (long) (durationUs * sampleRate / C.MICROS_PER_SECOND);
   }
 
   private void resetSyncParams() {
@@ -863,6 +862,9 @@ public final class AudioTrack {
     if(sonic != null){
       sonic.setSpeed(speed);
     }
+    if(audioTrackUtil != null){
+      audioTrackUtil.setPlaybackSpeed(speed);
+    }
   }
 
   public float getPlaybackSpeed(){
@@ -878,6 +880,7 @@ public final class AudioTrack {
     private boolean isPassthrough;
     private int sampleRate;
     private long lastRawPlaybackHeadPosition;
+
     private long rawPlaybackHeadWrapCount;
     private long passthroughWorkaroundPauseOffset;
 
@@ -885,14 +888,17 @@ public final class AudioTrack {
     private long stopPlaybackHeadPosition;
     private long endPlaybackHeadPosition;
 
+    protected float speed = 1.0f;
+
     /**
      * Reconfigures the audio track utility helper to use the specified {@code audioTrack}.
      *
      * @param audioTrack The audio track to wrap.
      * @param isPassthrough Whether the audio track is used for passthrough (e.g. AC-3) playback.
      */
-    public void reconfigure(android.media.AudioTrack audioTrack, boolean isPassthrough) {
+    public void reconfigure(android.media.AudioTrack audioTrack, float speed, boolean isPassthrough) {
       this.audioTrack = audioTrack;
+      this.speed = speed;
       this.isPassthrough = isPassthrough;
       stopTimestampUs = -1;
       lastRawPlaybackHeadPosition = 0;
@@ -988,7 +994,7 @@ public final class AudioTrack {
      * Returns {@link #getPlaybackHeadPosition()} expressed as microseconds.
      */
     public long getPlaybackHeadPositionUs() {
-      return (getPlaybackHeadPosition() * C.MICROS_PER_SECOND) / sampleRate;
+      return (long) (getPlaybackHeadPosition() * C.MICROS_PER_SECOND / sampleRate * speed);
     }
 
     /**
@@ -1031,6 +1037,14 @@ public final class AudioTrack {
       throw new UnsupportedOperationException();
     }
 
+    public void setPlaybackSpeed(float speed){
+      this.speed = speed;
+    }
+
+    public float getCurrentPlaybackSpeed(){
+      return speed;
+    }
+
   }
 
   @TargetApi(19)
@@ -1047,8 +1061,8 @@ public final class AudioTrack {
     }
 
     @Override
-    public void reconfigure(android.media.AudioTrack audioTrack, boolean isPassthrough) {
-      super.reconfigure(audioTrack, isPassthrough);
+    public void reconfigure(android.media.AudioTrack audioTrack, float speed, boolean isPassthrough) {
+      super.reconfigure(audioTrack, speed, isPassthrough);
       rawTimestampFramePositionWrapCount = 0;
       lastRawTimestampFramePosition = 0;
       lastTimestampFramePosition = 0;
@@ -1071,12 +1085,12 @@ public final class AudioTrack {
 
     @Override
     public long getTimestampNanoTime() {
-      return audioTimestamp.nanoTime;
+      return (long) (audioTimestamp.nanoTime * speed);
     }
 
     @Override
     public long getTimestampFramePosition() {
-      return lastTimestampFramePosition;
+      return (long)(lastTimestampFramePosition * speed);
     }
 
   }
