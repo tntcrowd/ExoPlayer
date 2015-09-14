@@ -236,16 +236,18 @@ public final class TextTrackRenderer extends SampleSourceTrackRenderer implement
       updateTextRenderer(subtitle.getCues(positionUs));
     }
 
-    if (!inputStreamEnded && nextSubtitle == null && !parserHelper.isParsing()) {
-      // Try and read the next subtitle from the source.
+    if (!inputStreamEnded && !parserHelper.isParsing()) {
       SampleHolder sampleHolder = parserHelper.getSampleHolder();
       sampleHolder.clearData();
+
       int result = readSource(positionUs, formatHolder, sampleHolder, false);
       if (result == SampleSource.FORMAT_READ) {
         parserHelper.setFormat(formatHolder.format);
-      } else if (result == SampleSource.SAMPLE_READ) {
+      } else if (nextSubtitle == null && result == SampleSource.SAMPLE_READ) {
         parserHelper.startParseOperation();
-      } else if (result == SampleSource.END_OF_STREAM) {
+      }
+
+      if (result == SampleSource.END_OF_STREAM) {
         inputStreamEnded = true;
       }
     }
@@ -270,7 +272,7 @@ public final class TextTrackRenderer extends SampleSourceTrackRenderer implement
 
   @Override
   protected boolean isEnded() {
-    return inputStreamEnded && (subtitle == null || getNextEventTime() == Long.MAX_VALUE);
+    return inputStreamEnded;
   }
 
   @Override
