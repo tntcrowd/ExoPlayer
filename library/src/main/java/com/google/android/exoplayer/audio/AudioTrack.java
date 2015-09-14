@@ -178,6 +178,7 @@ public final class AudioTrack {
 
   private android.media.AudioTrack audioTrack;
   private Sonic sonic;
+  private MediaFormat mediaFormat;
   private int sampleRate;
   private int channelConfig;
   private int encoding;
@@ -390,6 +391,7 @@ public final class AudioTrack {
    *     size inferred from the format.
    */
   public void reconfigure(MediaFormat format, boolean passthrough, int specifiedBufferSize) {
+    this.mediaFormat = format;
     int channelCount = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT);
     int channelConfig;
     switch (channelCount) {
@@ -431,9 +433,9 @@ public final class AudioTrack {
       bufferSize = specifiedBufferSize;
     } else {
       int multipliedBufferSize = minBufferSize * BUFFER_MULTIPLICATION_FACTOR;
-      int minAppBufferSize = (int) durationUsToFrames(MIN_BUFFER_DURATION_US) * frameSize;
-      int maxAppBufferSize = (int) Math.max(minBufferSize,
-          durationUsToFrames(MAX_BUFFER_DURATION_US) * frameSize);
+      int minAppBufferSize = (int) (durationUsToFrames(MIN_BUFFER_DURATION_US) * frameSize * speed);
+      int maxAppBufferSize = (int) (speed * Math.max(minBufferSize,
+          durationUsToFrames(MAX_BUFFER_DURATION_US) * frameSize));
       bufferSize = multipliedBufferSize < minAppBufferSize ? minAppBufferSize
           : multipliedBufferSize > maxAppBufferSize ? maxAppBufferSize
           : multipliedBufferSize;
@@ -864,6 +866,7 @@ public final class AudioTrack {
     if(audioTrackUtil != null){
       audioTrackUtil.setPlaybackSpeed(speed);
     }
+    reconfigure(mediaFormat, isPassthrough());
   }
 
   public float getPlaybackSpeed(){
@@ -904,7 +907,7 @@ public final class AudioTrack {
       rawPlaybackHeadWrapCount = 0;
       passthroughWorkaroundPauseOffset = 0;
       if (audioTrack != null) {
-        sampleRate = audioTrack.getSampleRate();
+        sampleRate = (int) (audioTrack.getSampleRate() / speed);
       }
     }
 
@@ -993,7 +996,7 @@ public final class AudioTrack {
      * Returns {@link #getPlaybackHeadPosition()} expressed as microseconds.
      */
     public long getPlaybackHeadPositionUs() {
-      return (long) (getPlaybackHeadPosition() * C.MICROS_PER_SECOND / sampleRate * speed);
+      return (long) (getPlaybackHeadPosition() * C.MICROS_PER_SECOND / sampleRate);
     }
 
     /**
