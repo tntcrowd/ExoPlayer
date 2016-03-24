@@ -29,6 +29,9 @@ import com.google.android.exoplayer.util.Assertions;
 import com.google.android.exoplayer.util.DtsUtil;
 import com.google.android.exoplayer.util.MimeTypes;
 import com.google.android.exoplayer.util.Util;
+
+import org.vinuxproject.sonic.Sonic;
+
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 
@@ -203,6 +206,10 @@ public final class AudioTrack {
   private int pcmFrameSize;
   private int bufferSize;
   private long bufferSizeUs;
+
+  private Sonic sonic;
+  private byte[] sonicBuffer;
+  private int sonicBufferOffset;
 
   private int nextPlayheadOffsetIndex;
   private int playheadOffsetCount;
@@ -406,6 +413,14 @@ public final class AudioTrack {
       // We already have an audio track with the correct sample rate, channel config and encoding.
       return;
     }
+    final int numChannels;
+    if(channelConfig == AudioFormat.CHANNEL_OUT_MONO){
+      numChannels = 1;
+    } else if(channelConfig == AudioFormat.CHANNEL_OUT_STEREO){
+      numChannels = 2;
+    } else {
+      numChannels = 1;
+    }
 
     reset();
 
@@ -413,8 +428,9 @@ public final class AudioTrack {
     this.passthrough = passthrough;
     this.sampleRate = sampleRate;
     this.channelConfig = channelConfig;
-    targetEncoding = passthrough ? sourceEncoding : C.ENCODING_PCM_16BIT;
-    pcmFrameSize = 2 * channelCount; // 2 bytes per 16-bit sample * number of channels.
+    this.targetEncoding = passthrough ? sourceEncoding : C.ENCODING_PCM_16BIT;
+    this.sonic = new Sonic(sampleRate, numChannels);
+    pcmFrameSize = 2 * channelCount; // 2 bytes per 16 bit sample * number of channels.
 
     if (specifiedBufferSize != 0) {
       bufferSize = specifiedBufferSize;
@@ -628,12 +644,18 @@ public final class AudioTrack {
           result |= RESULT_POSITION_DISCONTINUITY;
         }
       }
-      if (Util.SDK_INT < 21) {
+      if (Util.SDK_INT < 23) {
         // Copy {@code buffer} into {@code temporaryBuffer}.
-        if (temporaryBuffer == null || temporaryBuffer.length < size) {
-          temporaryBuffer = new byte[size];
+        if (sonicBuffer == null || sonicBuffer.length < size) {
+          sonicBuffer = new byte[size];
         }
-        buffer.get(temporaryBuffer, 0, size);
+        buffer.get(sonicBuffer, 0, size);
+        sonic.putBytes(sonicBuffer, size);
+        int availableBufferSize = sonic.availableBytes();
+        if(temporaryBuffer == null || temporaryBuffer.length < availableBufferSize){
+          temporaryBuffer = new byte[availableBufferSize];
+        }
+        sonic.receiveBytes(temporaryBuffer, availableBufferSize);
         temporaryBufferOffset = 0;
       }
     }
@@ -651,6 +673,8 @@ public final class AudioTrack {
           temporaryBufferOffset += bytesWritten;
         }
       }
+    } else if (Util.SDK_INT < 23) {
+      bytesWritten = writeNonBlockingV21(audioTrack, ByteBuffer.wrap(sonicBuffer), bufferBytesRemaining);
     } else {
       ByteBuffer data = useResampledBuffer ? resampledBuffer : buffer;
       bytesWritten = writeNonBlockingV21(audioTrack, data, bufferBytesRemaining);
@@ -698,8 +722,11 @@ public final class AudioTrack {
    * @throws UnsupportedOperationException if the Playback Parameters are not supported. That is,
    *     SDK_INT &lt; 23.
    */
-  public void setPlaybackParams(PlaybackParamsWrapper playbackParams) {
-    audioTrackUtil.setPlaybackParameters(playbackParams);
+  public void setPlaybackParams(PlaybackParamsWrapper playbackParamsWrapper) {
+    audioTrackUtil.setPlaybackParameters(playbackParamsWrapper);
+    if(Util.SDK_INT < 23){
+      sonic.setSpeed(audioTrackUtil.getPlaybackSpeed());
+    }
   }
 
   /**
@@ -1078,6 +1105,7 @@ public final class AudioTrack {
     protected android.media.AudioTrack audioTrack;
     private boolean needsPassthroughWorkaround;
     private int sampleRate;
+    private float playbackSpeed;
     private long lastRawPlaybackHeadPosition;
     private long rawPlaybackHeadWrapCount;
     private long passthroughWorkaroundPauseOffset;
@@ -1085,6 +1113,10 @@ public final class AudioTrack {
     private long stopTimestampUs;
     private long stopPlaybackHeadPosition;
     private long endPlaybackHeadPosition;
+
+    public AudioTrackUtil() {
+      this.playbackSpeed = 1.0f;
+    }
 
     /**
      * Reconfigures the audio track utility helper to use the specified {@code audioTrack}.
@@ -1223,12 +1255,12 @@ public final class AudioTrack {
     /**
      * Sets the Playback Parameters to be used by the underlying {@link android.media.AudioTrack}.
      *
-     * @param playbackParams to be used by the {@link android.media.AudioTrack}.
+     * @param playbackParamsWrapper to be used by the {@link android.media.AudioTrack} or {@link org.vinuxproject.sonic.Sonic}.
      * @throws UnsupportedOperationException If Playback Parameters are not supported
      *     (i.e. SDK_INT &lt; 23).
      */
-    public void setPlaybackParameters(PlaybackParamsWrapper playbackParams) {
-      throw new UnsupportedOperationException();
+    public void setPlaybackParameters(PlaybackParamsWrapper playbackParamsWrapper) {
+      this.playbackSpeed = playbackParamsWrapper.getSpeed();
     }
 
     /**
@@ -1238,7 +1270,7 @@ public final class AudioTrack {
      * @return The speed factor used by the underlying {@link android.media.AudioTrack}.
      */
     public float getPlaybackSpeed() {
-      return 1.0f;
+      return playbackSpeed;
     }
 
   }

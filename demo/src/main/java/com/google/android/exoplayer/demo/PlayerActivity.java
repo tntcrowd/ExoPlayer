@@ -520,9 +520,6 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     if (trackCount == 0) {
       return;
     }
-    if (Util.SDK_INT < 23){
-      return;
-    }
 
     PopupMenu popup = new PopupMenu(this, v);
     Menu menu = popup.getMenu();
