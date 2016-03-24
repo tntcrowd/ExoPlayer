@@ -46,6 +46,7 @@ import com.google.android.exoplayer.upstream.BandwidthMeter;
 import com.google.android.exoplayer.upstream.DefaultBandwidthMeter;
 import com.google.android.exoplayer.util.DebugTextViewHelper;
 import com.google.android.exoplayer.util.PlayerControl;
+import android.media.PlaybackParams;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -175,6 +176,7 @@ public class DemoPlayer implements ExoPlayer.Listener, ChunkSampleSource.EventLi
 
   private Surface surface;
   private TrackRenderer videoRenderer;
+  private TrackRenderer audioRenderer;
   private CodecCounters codecCounters;
   private Format videoFormat;
   private int videoTrackToRestore;
@@ -286,6 +288,7 @@ public class DemoPlayer implements ExoPlayer.Listener, ChunkSampleSource.EventLi
     rendererBuilder.cancel();
     videoFormat = null;
     videoRenderer = null;
+    audioRenderer = null;
     rendererBuildingState = RENDERER_BUILDING_STATE_BUILDING;
     maybeReportPlayerState();
     rendererBuilder.buildRenderers(this);
@@ -307,6 +310,7 @@ public class DemoPlayer implements ExoPlayer.Listener, ChunkSampleSource.EventLi
     }
     // Complete preparation.
     this.videoRenderer = renderers[TYPE_VIDEO];
+    this.audioRenderer = renderers[TYPE_AUDIO];
     this.codecCounters = videoRenderer instanceof MediaCodecTrackRenderer
         ? ((MediaCodecTrackRenderer) videoRenderer).codecCounters
         : renderers[TYPE_AUDIO] instanceof MediaCodecTrackRenderer
@@ -339,6 +343,13 @@ public class DemoPlayer implements ExoPlayer.Listener, ChunkSampleSource.EventLi
 
   public void seekTo(long positionMs) {
     player.seekTo(positionMs);
+  }
+
+  public void setPlaybackParams(PlaybackParams params){
+    if(audioRenderer == null){
+      return;
+    }
+    player.sendMessage(audioRenderer, MediaCodecAudioTrackRenderer.MSG_SET_PLAYBACK_PARAMS, params);
   }
 
   public void release() {

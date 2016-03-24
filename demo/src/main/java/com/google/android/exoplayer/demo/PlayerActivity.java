@@ -70,6 +70,8 @@ import com.google.android.exoplayer.util.DebugTextViewHelper;
 import com.google.android.exoplayer.util.MimeTypes;
 import com.google.android.exoplayer.util.Util;
 import com.google.android.exoplayer.util.VerboseLogUtil;
+import android.media.PlaybackParams;
+
 import java.net.CookieHandler;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
@@ -113,6 +115,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
   private Button videoButton;
   private Button audioButton;
   private Button textButton;
+  private Button speedButton;
   private Button retryButton;
 
   private DemoPlayer player;
@@ -177,6 +180,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     videoButton = (Button) findViewById(R.id.video_controls);
     audioButton = (Button) findViewById(R.id.audio_controls);
     textButton = (Button) findViewById(R.id.text_controls);
+    speedButton = (Button) findViewById(R.id.speed_controls);
 
     CookieHandler currentHandler = CookieHandler.getDefault();
     if (currentHandler != defaultCookieManager) {
@@ -465,6 +469,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     videoButton.setVisibility(haveTracks(DemoPlayer.TYPE_VIDEO) ? View.VISIBLE : View.GONE);
     audioButton.setVisibility(haveTracks(DemoPlayer.TYPE_AUDIO) ? View.VISIBLE : View.GONE);
     textButton.setVisibility(haveTracks(DemoPlayer.TYPE_TEXT) ? View.VISIBLE : View.GONE);
+    speedButton.setVisibility(haveTracks(DemoPlayer.TYPE_AUDIO) ? View.VISIBLE : View.GONE);
   }
 
   private boolean haveTracks(int type) {
@@ -501,6 +506,40 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
   public void showTextPopup(View v) {
     PopupMenu popup = new PopupMenu(this, v);
     configurePopupWithTracks(popup, null, DemoPlayer.TYPE_TEXT);
+    popup.show();
+  }
+
+  @TargetApi(23)
+  public void showSpeedPopup(View v) {
+    if (player == null) {
+      return;
+    }
+    final int trackCount = player.getTrackCount(DemoPlayer.TYPE_AUDIO);
+    if (trackCount == 0) {
+      return;
+    }
+    if (Util.SDK_INT < 23){
+      return;
+    }
+
+    PopupMenu popup = new PopupMenu(this, v);
+    Menu menu = popup.getMenu();
+    menu.add(Menu.NONE, 0, Menu.NONE, "0.8x");
+    menu.add(Menu.NONE, 1, Menu.NONE, "1.0x");
+    menu.add(Menu.NONE, 2, Menu.NONE, "1.2x");
+    menu.add(Menu.NONE, 3, Menu.NONE, "1.6x");
+    menu.add(Menu.NONE, 4, Menu.NONE, "2.0x");
+    menu.setGroupCheckable(Menu.NONE, true, true);
+    popup.setOnMenuItemClickListener(new OnMenuItemClickListener() {
+      float[] options = { 0.8f, 1.0f, 1.2f, 1.6f, 2.0f };
+      @Override
+      public boolean onMenuItemClick(MenuItem item) {
+        PlaybackParams params = new PlaybackParams();
+        params.setSpeed(options[item.getItemId()]);
+        player.setPlaybackParams(params);
+        return true;
+      }
+    });
     popup.show();
   }
 

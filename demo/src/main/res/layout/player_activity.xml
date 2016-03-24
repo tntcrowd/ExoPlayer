@@ -94,6 +94,14 @@
           android:visibility="gone"
           android:onClick="showTextPopup"/>
 
+      <Button android:id="@+id/speed_controls"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="@string/speed"
+          style="@style/DemoButton"
+          android:visibility="gone"
+          android:onClick="showSpeedPopup"/>
+
       <Button android:id="@+id/verbose_log_controls"
           android:layout_width="wrap_content"
           android:layout_height="wrap_content"
