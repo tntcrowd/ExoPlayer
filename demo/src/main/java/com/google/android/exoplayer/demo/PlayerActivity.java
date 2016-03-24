@@ -22,6 +22,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
@@ -50,6 +51,7 @@ import com.google.android.exoplayer.MediaCodecUtil.DecoderQueryException;
 import com.google.android.exoplayer.MediaFormat;
 import com.google.android.exoplayer.audio.AudioCapabilities;
 import com.google.android.exoplayer.audio.AudioCapabilitiesReceiver;
+import com.google.android.exoplayer.audio.AudioTrack;
 import com.google.android.exoplayer.demo.player.DashRendererBuilder;
 import com.google.android.exoplayer.demo.player.DemoPlayer;
 import com.google.android.exoplayer.demo.player.DemoPlayer.RendererBuilder;
@@ -534,9 +536,10 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
       float[] options = { 0.8f, 1.0f, 1.2f, 1.6f, 2.0f };
       @Override
       public boolean onMenuItemClick(MenuItem item) {
-        PlaybackParams params = new PlaybackParams();
-        params.setSpeed(options[item.getItemId()]);
-        player.setPlaybackParams(params);
+        final float speed = options[item.getItemId()];
+        final AudioTrack.PlaybackParamsWrapper wrapper = Build.VERSION.SDK_INT < Build.VERSION_CODES.M ?
+                new AudioTrack.PlaybackParamsWrapper(speed) : new AudioTrack.PlaybackParamsWrapperV23(speed);
+        player.setPlaybackParams(wrapper);
         return true;
       }
     });

@@ -345,11 +345,11 @@ public class DemoPlayer implements ExoPlayer.Listener, ChunkSampleSource.EventLi
     player.seekTo(positionMs);
   }
 
-  public void setPlaybackParams(PlaybackParams params){
+  public void setPlaybackParams(AudioTrack.PlaybackParamsWrapper wrapper){
     if(audioRenderer == null){
       return;
     }
-    player.sendMessage(audioRenderer, MediaCodecAudioTrackRenderer.MSG_SET_PLAYBACK_PARAMS, params);
+    player.sendMessage(audioRenderer, MediaCodecAudioTrackRenderer.MSG_SET_PLAYBACK_PARAMS, wrapper);
   }
 
   public void release() {
