@@ -698,7 +698,7 @@ public final class AudioTrack {
    * @throws UnsupportedOperationException if the Playback Parameters are not supported. That is,
    *     SDK_INT &lt; 23.
    */
-  public void setPlaybackParams(PlaybackParams playbackParams) {
+  public void setPlaybackParams(PlaybackParamsWrapper playbackParams) {
     audioTrackUtil.setPlaybackParameters(playbackParams);
   }
 
@@ -1227,7 +1227,7 @@ public final class AudioTrack {
      * @throws UnsupportedOperationException If Playback Parameters are not supported
      *     (i.e. SDK_INT &lt; 23).
      */
-    public void setPlaybackParameters(PlaybackParams playbackParams) {
+    public void setPlaybackParameters(PlaybackParamsWrapper playbackParams) {
       throw new UnsupportedOperationException();
     }
 
@@ -1295,7 +1295,7 @@ public final class AudioTrack {
   @TargetApi(23)
   private static class AudioTrackUtilV23 extends AudioTrackUtilV19 {
 
-    private PlaybackParams playbackParams;
+    private PlaybackParamsWrapperV23 playbackParamsWrapper;
     private float playbackSpeed;
 
     public AudioTrackUtilV23() {
@@ -1310,11 +1310,10 @@ public final class AudioTrack {
     }
 
     @Override
-    public void setPlaybackParameters(PlaybackParams playbackParams) {
-      playbackParams = (playbackParams != null ? playbackParams : new PlaybackParams())
-          .allowDefaults();
-      this.playbackParams = playbackParams;
-      this.playbackSpeed = playbackParams.getSpeed();
+    public void setPlaybackParameters(PlaybackParamsWrapper playbackParamsWrapper) {
+      this.playbackParamsWrapper = playbackParamsWrapper != null
+              ? (PlaybackParamsWrapperV23)playbackParamsWrapper : new PlaybackParamsWrapperV23();
+      this.playbackSpeed = playbackParamsWrapper.getSpeed();
       maybeApplyPlaybackParams();
     }
 
@@ -1324,11 +1323,48 @@ public final class AudioTrack {
     }
 
     private void maybeApplyPlaybackParams() {
-      if (audioTrack != null && playbackParams != null) {
-        audioTrack.setPlaybackParams(playbackParams);
+      if (audioTrack != null && playbackParamsWrapper != null) {
+        audioTrack.setPlaybackParams(playbackParamsWrapper.params);
       }
     }
 
+  }
+
+  public static class PlaybackParamsWrapper {
+
+    private float speed = 1.0f;
+
+    public PlaybackParamsWrapper(){}
+
+    public PlaybackParamsWrapper(float speed) {
+      this.speed = speed;
+    }
+
+    public float getSpeed(){
+      return speed;
+    }
+  }
+
+  @TargetApi(23)
+  public static class PlaybackParamsWrapperV23 extends PlaybackParamsWrapper {
+
+    private PlaybackParams params;
+
+    public PlaybackParamsWrapperV23() {
+      params = new PlaybackParams();
+      params.setSpeed(1.0f);
+    }
+
+    public PlaybackParamsWrapperV23(float speed) {
+      super(speed);
+      params = new PlaybackParams();
+      params.setSpeed(speed);
+    }
+
+    @Override
+    public float getSpeed(){
+      return params.getSpeed();
+    }
   }
 
 }
