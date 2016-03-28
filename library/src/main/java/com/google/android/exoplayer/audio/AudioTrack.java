@@ -209,7 +209,6 @@ public final class AudioTrack {
 
   private Sonic sonic;
   private byte[] sonicBuffer;
-  private int sonicBufferOffset;
 
   private int nextPlayheadOffsetIndex;
   private int playheadOffsetCount;
@@ -316,7 +315,7 @@ public final class AudioTrack {
       long presentationDiff = systemClockUs - (audioTrackUtil.getTimestampNanoTime() / 1000);
       // Fixes such difference if the playback speed is not real time speed.
       long actualSpeedPresentationDiff = (long) (presentationDiff
-          * audioTrackUtil.getPlaybackSpeed());
+          * (Util.SDK_INT < 23 ? 1.0f : audioTrackUtil.getPlaybackSpeed()));
       long framesDiff = durationUsToFrames(actualSpeedPresentationDiff);
       // The position of the frame that's currently being presented.
       long currentFramePosition = audioTrackUtil.getTimestampFramePosition() + framesDiff;
@@ -412,14 +411,6 @@ public final class AudioTrack {
         && this.channelConfig == channelConfig) {
       // We already have an audio track with the correct sample rate, channel config and encoding.
       return;
-    }
-    final int numChannels;
-    if(channelConfig == AudioFormat.CHANNEL_OUT_MONO){
-      numChannels = 1;
-    } else if(channelConfig == AudioFormat.CHANNEL_OUT_STEREO){
-      numChannels = 2;
-    } else {
-      numChannels = 1;
     }
 
     reset();
@@ -620,16 +611,50 @@ public final class AudioTrack {
 
       bufferBytesRemaining = size;
       buffer.position(offset);
+
+      if (Util.SDK_INT < 23) {
+        if(sonic == null){
+          final int numChannels;
+          if(channelConfig == AudioFormat.CHANNEL_OUT_MONO) {
+            numChannels = 1;
+          } else if(channelConfig == AudioFormat.CHANNEL_OUT_STEREO) {
+            numChannels = 2;
+          } else {
+            numChannels = 1;
+          }
+          sonic = new Sonic(sampleRate, numChannels);
+          sonic.setSpeed(audioTrackUtil.getPlaybackSpeed());
+        }
+        // Copy {@code buffer} into {@code temporaryBuffer}.
+        if (sonicBuffer == null || sonicBuffer.length < size) {
+          sonicBuffer = new byte[size];
+        }
+        buffer.get(sonicBuffer, 0, size);
+        sonic.putBytes(sonicBuffer, size);
+        bufferBytesRemaining = sonic.availableBytes();
+        if(temporaryBuffer == null || temporaryBuffer.length < bufferBytesRemaining){
+          temporaryBuffer = new byte[bufferBytesRemaining];
+        }
+        sonic.receiveBytes(temporaryBuffer, bufferBytesRemaining);
+        temporaryBufferOffset = 0;
+      }
+
       if (passthrough && framesPerEncodedSample == 0) {
         // If this is the first encoded sample, calculate the sample size in frames.
         framesPerEncodedSample = getFramesPerEncodedSample(targetEncoding, buffer);
       }
+      long frames = passthrough ? framesPerEncodedSample : pcmBytesToFrames(size);
+      long bufferDurationUs = (long) (framesToDurationUs(frames)
+              * (Util.SDK_INT < 23 ? audioTrackUtil.getPlaybackSpeed() : 1.0f));
+      // Note: presentationTimeUs corresponds to the end of the sample, not the start.
+      long bufferStartTime = presentationTimeUs - bufferDurationUs;
       if (startMediaTimeState == START_NOT_SET) {
         startMediaTimeUs = Math.max(0, presentationTimeUs);
         startMediaTimeState = START_IN_SYNC;
       } else {
         // Sanity check that bufferStartTime is consistent with the expected value.
-        long expectedBufferStartTime = startMediaTimeUs + framesToDurationUs(getSubmittedFrames());
+        long expectedBufferStartTime = startMediaTimeUs + (long) (framesToDurationUs(getSubmittedFrames())
+                * (Util.SDK_INT < 23 ? audioTrackUtil.getPlaybackSpeed() : 1.0f));
         if (startMediaTimeState == START_IN_SYNC
             && Math.abs(expectedBufferStartTime - presentationTimeUs) > 200000) {
           Log.e(TAG, "Discontinuity detected [expected " + expectedBufferStartTime + ", got "
@@ -644,24 +669,10 @@ public final class AudioTrack {
           result |= RESULT_POSITION_DISCONTINUITY;
         }
       }
-      if (Util.SDK_INT < 23) {
-        // Copy {@code buffer} into {@code temporaryBuffer}.
-        if (sonicBuffer == null || sonicBuffer.length < size) {
-          sonicBuffer = new byte[size];
-        }
-        buffer.get(sonicBuffer, 0, size);
-        sonic.putBytes(sonicBuffer, size);
-        int availableBufferSize = sonic.availableBytes();
-        if(temporaryBuffer == null || temporaryBuffer.length < availableBufferSize){
-          temporaryBuffer = new byte[availableBufferSize];
-        }
-        sonic.receiveBytes(temporaryBuffer, availableBufferSize);
-        temporaryBufferOffset = 0;
-      }
     }
 
     int bytesWritten = 0;
-    if (Util.SDK_INT < 21) { // passthrough == false
+    if (Util.SDK_INT < 23) { // passthrough == false
       // Work out how many bytes we can write without the risk of blocking.
       int bytesPending =
           (int) (submittedPcmBytes - (audioTrackUtil.getPlaybackHeadPosition() * pcmFrameSize));
@@ -673,11 +684,10 @@ public final class AudioTrack {
           temporaryBufferOffset += bytesWritten;
         }
       }
-    } else if (Util.SDK_INT < 23) {
-      bytesWritten = writeNonBlockingV21(audioTrack, ByteBuffer.wrap(sonicBuffer), bufferBytesRemaining);
-    } else {
-      ByteBuffer data = useResampledBuffer ? resampledBuffer : buffer;
-      bytesWritten = writeNonBlockingV21(audioTrack, data, bufferBytesRemaining);
+    } /*else if (Util.SDK_INT < 23) {
+      bytesWritten = writeNonBlockingV21(audioTrack, ByteBuffer.wrap(temporaryBuffer), bufferBytesRemaining);
+    }*/ else {
+      bytesWritten = writeNonBlockingV21(audioTrack, buffer, bufferBytesRemaining);
     }
 
     if (bytesWritten < 0) {
@@ -725,7 +735,9 @@ public final class AudioTrack {
   public void setPlaybackParams(PlaybackParamsWrapper playbackParamsWrapper) {
     audioTrackUtil.setPlaybackParameters(playbackParamsWrapper);
     if(Util.SDK_INT < 23){
-      sonic.setSpeed(audioTrackUtil.getPlaybackSpeed());
+      if(sonic != null) {
+        sonic.setSpeed(playbackParamsWrapper.getSpeed());
+      }
     }
   }
 
@@ -780,6 +792,7 @@ public final class AudioTrack {
       // AudioTrack.release can take some time, so we call it on a background thread.
       final android.media.AudioTrack toRelease = audioTrack;
       audioTrack = null;
+      sonic = null;
       audioTrackUtil.reconfigure(null, false);
       releasingConditionVariable.close();
       new Thread() {
@@ -1209,7 +1222,8 @@ public final class AudioTrack {
      * Returns {@link #getPlaybackHeadPosition()} expressed as microseconds.
      */
     public long getPlaybackHeadPositionUs() {
-      return (getPlaybackHeadPosition() * C.MICROS_PER_SECOND) / sampleRate;
+      return (long) ((getPlaybackHeadPosition() * C.MICROS_PER_SECOND) / sampleRate
+              * (Util.SDK_INT < 23 ? getPlaybackSpeed() : 1.0f));
     }
 
     /**
@@ -1314,12 +1328,12 @@ public final class AudioTrack {
 
     @Override
     public long getTimestampNanoTime() {
-      return audioTimestamp.nanoTime;
+      return (long) (audioTimestamp.nanoTime * (Util.SDK_INT < 23 ? getPlaybackSpeed() : 1.0f));
     }
 
     @Override
     public long getTimestampFramePosition() {
-      return lastTimestampFramePosition;
+      return (long) (lastTimestampFramePosition * (Util.SDK_INT < 23 ? getPlaybackSpeed() : 1.0f));
     }
 
   }
