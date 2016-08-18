@@ -420,7 +420,7 @@ public final class AudioTrack {
     this.sampleRate = sampleRate;
     this.channelConfig = channelConfig;
     this.targetEncoding = passthrough ? sourceEncoding : C.ENCODING_PCM_16BIT;
-    this.sonic = new Sonic(sampleRate, numChannels);
+    this.sonic = new Sonic(sampleRate, channelCount);
     pcmFrameSize = 2 * channelCount; // 2 bytes per 16 bit sample * number of channels.
 
     if (specifiedBufferSize != 0) {
