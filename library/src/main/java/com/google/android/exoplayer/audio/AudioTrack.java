@@ -20,6 +20,7 @@ import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTimestamp;
 import android.media.PlaybackParams;
+import android.os.Build;
 import android.os.ConditionVariable;
 import android.os.SystemClock;
 import android.util.Log;
@@ -169,6 +170,8 @@ public final class AudioTrack {
   private static final int MIN_PLAYHEAD_OFFSET_SAMPLE_INTERVAL_US = 30000;
   private static final int MIN_TIMESTAMP_SAMPLE_INTERVAL_US = 500000;
 
+  private static final int MIN_SUPPORT_PLAYBACK_PARAMS = Build.VERSION_CODES.M;
+
   /**
    * Whether to enable a workaround for an issue where an audio effect does not keep its session
    * active across releasing/initializing a new audio track, on platform API version &lt; 21.
@@ -259,7 +262,7 @@ public final class AudioTrack {
         // There's no guarantee this method exists. Do nothing.
       }
     }
-    if (Util.SDK_INT >= 23) {
+    if (Util.SDK_INT >= MIN_SUPPORT_PLAYBACK_PARAMS) {
       audioTrackUtil = new AudioTrackUtilV23();
     } else if (Util.SDK_INT >= 19) {
       audioTrackUtil = new AudioTrackUtilV19();
@@ -315,7 +318,7 @@ public final class AudioTrack {
       long presentationDiff = systemClockUs - (audioTrackUtil.getTimestampNanoTime() / 1000);
       // Fixes such difference if the playback speed is not real time speed.
       long actualSpeedPresentationDiff = (long) (presentationDiff
-          * (Util.SDK_INT < 23 ? 1.0f : audioTrackUtil.getPlaybackSpeed()));
+          * (Util.SDK_INT < MIN_SUPPORT_PLAYBACK_PARAMS ? 1.0f : audioTrackUtil.getPlaybackSpeed()));
       long framesDiff = durationUsToFrames(actualSpeedPresentationDiff);
       // The position of the frame that's currently being presented.
       long currentFramePosition = audioTrackUtil.getTimestampFramePosition() + framesDiff;
@@ -612,7 +615,7 @@ public final class AudioTrack {
       bufferBytesRemaining = size;
       buffer.position(offset);
 
-      if (Util.SDK_INT < 23) {
+      if (Util.SDK_INT < MIN_SUPPORT_PLAYBACK_PARAMS) {
         if(sonic == null){
           final int numChannels;
           if(channelConfig == AudioFormat.CHANNEL_OUT_MONO) {
@@ -645,7 +648,7 @@ public final class AudioTrack {
       }
       long frames = passthrough ? framesPerEncodedSample : pcmBytesToFrames(size);
       long bufferDurationUs = (long) (framesToDurationUs(frames)
-              * (Util.SDK_INT < 23 ? audioTrackUtil.getPlaybackSpeed() : 1.0f));
+              * (Util.SDK_INT < MIN_SUPPORT_PLAYBACK_PARAMS ? audioTrackUtil.getPlaybackSpeed() : 1.0f));
       // Note: presentationTimeUs corresponds to the end of the sample, not the start.
       long bufferStartTime = presentationTimeUs - bufferDurationUs;
       if (startMediaTimeState == START_NOT_SET) {
@@ -654,7 +657,7 @@ public final class AudioTrack {
       } else {
         // Sanity check that bufferStartTime is consistent with the expected value.
         long expectedBufferStartTime = startMediaTimeUs + (long) (framesToDurationUs(getSubmittedFrames())
-                * (Util.SDK_INT < 23 ? audioTrackUtil.getPlaybackSpeed() : 1.0f));
+                * (Util.SDK_INT < MIN_SUPPORT_PLAYBACK_PARAMS ? audioTrackUtil.getPlaybackSpeed() : 1.0f));
         if (startMediaTimeState == START_IN_SYNC
             && Math.abs(expectedBufferStartTime - presentationTimeUs) > 200000) {
           Log.e(TAG, "Discontinuity detected [expected " + expectedBufferStartTime + ", got "
@@ -672,7 +675,7 @@ public final class AudioTrack {
     }
 
     int bytesWritten = 0;
-    if (Util.SDK_INT < 23) { // passthrough == false
+    if (Util.SDK_INT < MIN_SUPPORT_PLAYBACK_PARAMS) { // passthrough == false
       // Work out how many bytes we can write without the risk of blocking.
       int bytesPending =
           (int) (submittedPcmBytes - (audioTrackUtil.getPlaybackHeadPosition() * pcmFrameSize));
@@ -734,7 +737,7 @@ public final class AudioTrack {
    */
   public void setPlaybackParams(PlaybackParamsWrapper playbackParamsWrapper) {
     audioTrackUtil.setPlaybackParameters(playbackParamsWrapper);
-    if(Util.SDK_INT < 23){
+    if(Util.SDK_INT < MIN_SUPPORT_PLAYBACK_PARAMS){
       if(sonic != null) {
         sonic.setSpeed(playbackParamsWrapper.getSpeed());
       }
@@ -982,7 +985,7 @@ public final class AudioTrack {
    * See [Internal: b/18899620, b/19187573, b/21145353].
    */
   private boolean needsPassthroughWorkarounds() {
-    return Util.SDK_INT < 23
+    return Util.SDK_INT < MIN_SUPPORT_PLAYBACK_PARAMS
         && (targetEncoding == C.ENCODING_AC3 || targetEncoding == C.ENCODING_E_AC3);
   }
 
@@ -1223,7 +1226,7 @@ public final class AudioTrack {
      */
     public long getPlaybackHeadPositionUs() {
       return (long) ((getPlaybackHeadPosition() * C.MICROS_PER_SECOND) / sampleRate
-              * (Util.SDK_INT < 23 ? getPlaybackSpeed() : 1.0f));
+              * (Util.SDK_INT < MIN_SUPPORT_PLAYBACK_PARAMS ? getPlaybackSpeed() : 1.0f));
     }
 
     /**
@@ -1328,12 +1331,12 @@ public final class AudioTrack {
 
     @Override
     public long getTimestampNanoTime() {
-      return (long) (audioTimestamp.nanoTime * (Util.SDK_INT < 23 ? getPlaybackSpeed() : 1.0f));
+      return (long) (audioTimestamp.nanoTime * (Util.SDK_INT < MIN_SUPPORT_PLAYBACK_PARAMS ? getPlaybackSpeed() : 1.0f));
     }
 
     @Override
     public long getTimestampFramePosition() {
-      return (long) (lastTimestampFramePosition * (Util.SDK_INT < 23 ? getPlaybackSpeed() : 1.0f));
+      return (long) (lastTimestampFramePosition * (Util.SDK_INT < MIN_SUPPORT_PLAYBACK_PARAMS ? getPlaybackSpeed() : 1.0f));
     }
 
   }
