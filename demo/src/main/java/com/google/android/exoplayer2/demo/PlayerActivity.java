@@ -15,14 +15,19 @@
  */
 package com.google.android.exoplayer2.demo;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.PlaybackParams;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.text.TextUtils;
 import android.view.KeyEvent;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceView;
@@ -33,6 +38,7 @@ import android.view.View.OnTouchListener;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.MediaController;
+import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 import com.google.android.exoplayer2.C;
@@ -115,6 +121,7 @@ public class PlayerActivity extends Activity implements OnKeyListener, OnTouchLi
   private SurfaceView surfaceView;
   private TextView debugTextView;
   private SubtitleView subtitleView;
+  private Button speedButton;
   private Button retryButton;
 
   private String userAgent;
@@ -155,6 +162,13 @@ public class PlayerActivity extends Activity implements OnKeyListener, OnTouchLi
     subtitleView.setUserDefaultTextSize();
     mediaController = new KeyCompatibleMediaController(this);
     mediaController.setPrevNextListeners(this, this);
+    speedButton = (Button) findViewById(R.id.speed_button);
+    speedButton.setOnClickListener(new OnClickListener() {
+      @Override
+      public void onClick(View v) {
+        showSpeedPopup(v);
+      }
+    });
     retryButton = (Button) findViewById(R.id.retry_button);
     retryButton.setOnClickListener(this);
   }
@@ -485,9 +499,35 @@ public class PlayerActivity extends Activity implements OnKeyListener, OnTouchLi
   }
 
   // User controls
+  @TargetApi(23)
+  private void showSpeedPopup(View v){
+    if (player == null || Util.SDK_INT < Build.VERSION_CODES.M) {
+      return;
+    }
+    PopupMenu popup = new PopupMenu(this, v);
+    Menu menu = popup.getMenu();
+    menu.add(Menu.NONE, 0, Menu.NONE, "0.8x");
+    menu.add(Menu.NONE, 1, Menu.NONE, "1.0x");
+    menu.add(Menu.NONE, 2, Menu.NONE, "1.2x");
+    menu.add(Menu.NONE, 3, Menu.NONE, "1.5x");
+    menu.add(Menu.NONE, 4, Menu.NONE, "2.0x");
+    menu.setGroupCheckable(Menu.NONE, true, true);
+    popup.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
+      float[] options = { 0.8f, 1.0f, 1.2f, 1.5f, 2.0f };
+      @Override
+      public boolean onMenuItemClick(MenuItem item) {
+        PlaybackParams params = new PlaybackParams();
+        params.setSpeed(options[item.getItemId()]);
+        player.setPlaybackParams(params);
+        return true;
+      }
+    });
+    popup.show();
+  }
 
   private void updateButtonVisibilities() {
     debugRootView.removeAllViews();
+    speedButton.setVisibility(View.GONE);
 
     retryButton.setVisibility(playerNeedsSource ? View.VISIBLE : View.GONE);
     debugRootView.addView(retryButton);
@@ -510,6 +550,8 @@ public class PlayerActivity extends Activity implements OnKeyListener, OnTouchLi
         switch (player.getRendererType(i)) {
           case C.TRACK_TYPE_AUDIO:
             label = R.string.audio;
+            speedButton.setVisibility(View.VISIBLE);
+            debugRootView.addView(speedButton);
             break;
           case C.TRACK_TYPE_VIDEO:
             label = R.string.video;

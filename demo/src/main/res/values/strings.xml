@@ -25,6 +25,8 @@
 
   <string name="text">Text</string>
 
+  <string name="speed">Speed</string>
+
   <string name="retry">Retry</string>
 
   <string name="selection_disabled">Disabled</string>
