@@ -15,17 +15,23 @@
  */
 package com.google.android.exoplayer2.demo;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.media.PlaybackParams;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.text.TextUtils;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 import com.google.android.exoplayer2.C;
@@ -78,7 +84,7 @@ import java.util.UUID;
  * An activity that plays media using {@link SimpleExoPlayer}.
  */
 public class PlayerActivity extends Activity implements OnClickListener, ExoPlayer.EventListener,
-    TrackSelector.EventListener<MappedTrackInfo>, PlaybackControlView.VisibilityListener {
+        TrackSelector.EventListener<MappedTrackInfo>, PlaybackControlView.VisibilityListener {
 
   public static final String DRM_SCHEME_UUID_EXTRA = "drm_scheme_uuid";
   public static final String DRM_LICENSE_URL = "drm_license_url";
@@ -89,7 +95,7 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
   public static final String EXTENSION_EXTRA = "extension";
 
   public static final String ACTION_VIEW_LIST =
-      "com.google.android.exoplayer.demo.action.VIEW_LIST";
+          "com.google.android.exoplayer.demo.action.VIEW_LIST";
   public static final String URI_LIST_EXTRA = "uri_list";
   public static final String EXTENSION_LIST_EXTRA = "extension_list";
 
@@ -107,6 +113,7 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
   private LinearLayout debugRootView;
   private TextView debugTextView;
   private Button retryButton;
+  private Button speedButton;
 
   private DataSource.Factory mediaDataSourceFactory;
   private SimpleExoPlayer player;
@@ -140,6 +147,8 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
     debugTextView = (TextView) findViewById(R.id.debug_text_view);
     retryButton = (Button) findViewById(R.id.retry_button);
     retryButton.setOnClickListener(this);
+    speedButton = (Button) findViewById(R.id.speed_button);
+    speedButton.setOnClickListener(this);
 
     simpleExoPlayerView = (SimpleExoPlayerView) findViewById(R.id.player_view);
     simpleExoPlayerView.setControllerVisibilityListener(this);
@@ -187,7 +196,7 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
 
   @Override
   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-      int[] grantResults) {
+                                         int[] grantResults) {
     if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
       initializePlayer();
     } else {
@@ -202,9 +211,33 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
   public void onClick(View view) {
     if (view == retryButton) {
       initializePlayer();
+    } else if (view == speedButton) {
+      if (player == null || Util.SDK_INT < Build.VERSION_CODES.M) {
+        return;
+      }
+      PopupMenu popup = new PopupMenu(this, view);
+      Menu menu = popup.getMenu();
+      menu.add(Menu.NONE, 0, Menu.NONE, "0.8x");
+      menu.add(Menu.NONE, 1, Menu.NONE, "1.0x");
+      menu.add(Menu.NONE, 2, Menu.NONE, "1.2x");
+      menu.add(Menu.NONE, 3, Menu.NONE, "1.5x");
+      menu.add(Menu.NONE, 4, Menu.NONE, "2.0x");
+      menu.setGroupCheckable(Menu.NONE, true, true);
+      popup.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
+        float[] options = {0.8f, 1.0f, 1.2f, 1.5f, 2.0f};
+        @TargetApi(23)
+        @Override
+        public boolean onMenuItemClick(MenuItem item) {
+          PlaybackParams params = new PlaybackParams();
+          params.setSpeed(options[item.getItemId()]);
+          player.setPlaybackParams(params);
+          return true;
+        }
+      });
+      popup.show();
     } else if (view.getParent() == debugRootView) {
       trackSelectionHelper.showSelectionDialog(this, ((Button) view).getText(),
-          trackSelector.getCurrentSelections().info, (int) view.getTag());
+              trackSelector.getCurrentSelections().info, (int) view.getTag());
     }
   }
 
@@ -222,7 +255,7 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
     if (player == null) {
       boolean preferExtensionDecoders = intent.getBooleanExtra(PREFER_EXTENSION_DECODERS, false);
       UUID drmSchemeUuid = intent.hasExtra(DRM_SCHEME_UUID_EXTRA)
-          ? UUID.fromString(intent.getStringExtra(DRM_SCHEME_UUID_EXTRA)) : null;
+              ? UUID.fromString(intent.getStringExtra(DRM_SCHEME_UUID_EXTRA)) : null;
       DrmSessionManager<FrameworkMediaCrypto> drmSessionManager = null;
       if (drmSchemeUuid != null) {
         String drmLicenseUrl = intent.getStringExtra(DRM_LICENSE_URL);
@@ -234,15 +267,15 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
           keyRequestProperties = new HashMap<>();
           for (int i = 0; i < keyRequestPropertiesArray.length - 1; i += 2) {
             keyRequestProperties.put(keyRequestPropertiesArray[i],
-                keyRequestPropertiesArray[i + 1]);
+                    keyRequestPropertiesArray[i + 1]);
           }
         }
         try {
           drmSessionManager = buildDrmSessionManager(drmSchemeUuid, drmLicenseUrl,
-              keyRequestProperties);
+                  keyRequestProperties);
         } catch (UnsupportedDrmException e) {
           int errorStringId = Util.SDK_INT < 18 ? R.string.error_drm_not_supported
-              : (e.reason == UnsupportedDrmException.REASON_UNSUPPORTED_SCHEME
+                  : (e.reason == UnsupportedDrmException.REASON_UNSUPPORTED_SCHEME
                   ? R.string.error_drm_unsupported_scheme : R.string.error_drm_unknown);
           showToast(errorStringId);
           return;
@@ -251,13 +284,13 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
 
       eventLogger = new EventLogger();
       TrackSelection.Factory videoTrackSelectionFactory =
-          new AdaptiveVideoTrackSelection.Factory(BANDWIDTH_METER);
+              new AdaptiveVideoTrackSelection.Factory(BANDWIDTH_METER);
       trackSelector = new DefaultTrackSelector(mainHandler, videoTrackSelectionFactory);
       trackSelector.addListener(this);
       trackSelector.addListener(eventLogger);
       trackSelectionHelper = new TrackSelectionHelper(trackSelector, videoTrackSelectionFactory);
       player = ExoPlayerFactory.newSimpleInstance(this, trackSelector, new DefaultLoadControl(),
-          drmSessionManager, preferExtensionDecoders);
+              drmSessionManager, preferExtensionDecoders);
       player.addListener(this);
       player.addListener(eventLogger);
       player.setAudioDebugListener(eventLogger);
@@ -306,7 +339,7 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
         mediaSources[i] = buildMediaSource(uris[i], extensions[i]);
       }
       MediaSource mediaSource = mediaSources.length == 1 ? mediaSources[0]
-          : new ConcatenatingMediaSource(mediaSources);
+              : new ConcatenatingMediaSource(mediaSources);
       player.prepare(mediaSource, !isTimelineStatic, !isTimelineStatic);
       playerNeedsSource = false;
       updateButtonVisibilities();
@@ -315,19 +348,19 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
 
   private MediaSource buildMediaSource(Uri uri, String overrideExtension) {
     int type = Util.inferContentType(!TextUtils.isEmpty(overrideExtension) ? "." + overrideExtension
-        : uri.getLastPathSegment());
+            : uri.getLastPathSegment());
     switch (type) {
       case C.TYPE_SS:
         return new SsMediaSource(uri, buildDataSourceFactory(false),
-            new DefaultSsChunkSource.Factory(mediaDataSourceFactory), mainHandler, eventLogger);
+                new DefaultSsChunkSource.Factory(mediaDataSourceFactory), mainHandler, eventLogger);
       case C.TYPE_DASH:
         return new DashMediaSource(uri, buildDataSourceFactory(false),
-            new DefaultDashChunkSource.Factory(mediaDataSourceFactory), mainHandler, eventLogger);
+                new DefaultDashChunkSource.Factory(mediaDataSourceFactory), mainHandler, eventLogger);
       case C.TYPE_HLS:
         return new HlsMediaSource(uri, mediaDataSourceFactory, mainHandler, eventLogger);
       case C.TYPE_OTHER:
         return new ExtractorMediaSource(uri, mediaDataSourceFactory, new DefaultExtractorsFactory(),
-            mainHandler, eventLogger);
+                mainHandler, eventLogger);
       default: {
         throw new IllegalStateException("Unsupported type: " + type);
       }
@@ -335,14 +368,14 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
   }
 
   private DrmSessionManager<FrameworkMediaCrypto> buildDrmSessionManager(UUID uuid,
-      String licenseUrl, Map<String, String> keyRequestProperties) throws UnsupportedDrmException {
+                                                                         String licenseUrl, Map<String, String> keyRequestProperties) throws UnsupportedDrmException {
     if (Util.SDK_INT < 18) {
       return null;
     }
     HttpMediaDrmCallback drmCallback = new HttpMediaDrmCallback(licenseUrl,
-        buildHttpDataSourceFactory(false), keyRequestProperties);
+            buildHttpDataSourceFactory(false), keyRequestProperties);
     return new StreamingDrmSessionManager<>(uuid,
-        FrameworkMediaDrm.newInstance(uuid), drmCallback, null, mainHandler, eventLogger);
+            FrameworkMediaDrm.newInstance(uuid), drmCallback, null, mainHandler, eventLogger);
   }
 
   private void releasePlayer() {
@@ -373,7 +406,7 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
    */
   private DataSource.Factory buildDataSourceFactory(boolean useBandwidthMeter) {
     return ((DemoApplication) getApplication())
-        .buildDataSourceFactory(useBandwidthMeter ? BANDWIDTH_METER : null);
+            .buildDataSourceFactory(useBandwidthMeter ? BANDWIDTH_METER : null);
   }
 
   /**
@@ -385,7 +418,7 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
    */
   private HttpDataSource.Factory buildHttpDataSourceFactory(boolean useBandwidthMeter) {
     return ((DemoApplication) getApplication())
-        .buildHttpDataSourceFactory(useBandwidthMeter ? BANDWIDTH_METER : null);
+            .buildHttpDataSourceFactory(useBandwidthMeter ? BANDWIDTH_METER : null);
   }
 
   // ExoPlayer.EventListener implementation
@@ -411,7 +444,7 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
   @Override
   public void onTimelineChanged(Timeline timeline, Object manifest) {
     isTimelineStatic = timeline != null && timeline.getWindowCount() > 0
-        && !timeline.getWindow(timeline.getWindowCount() - 1, window).isDynamic;
+            && !timeline.getWindow(timeline.getWindowCount() - 1, window).isDynamic;
   }
 
   @Override
@@ -422,20 +455,20 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
       if (cause instanceof DecoderInitializationException) {
         // Special case for decoder initialization failures.
         DecoderInitializationException decoderInitializationException =
-            (DecoderInitializationException) cause;
+                (DecoderInitializationException) cause;
         if (decoderInitializationException.decoderName == null) {
           if (decoderInitializationException.getCause() instanceof DecoderQueryException) {
             errorString = getString(R.string.error_querying_decoders);
           } else if (decoderInitializationException.secureDecoderRequired) {
             errorString = getString(R.string.error_no_secure_decoder,
-                decoderInitializationException.mimeType);
+                    decoderInitializationException.mimeType);
           } else {
             errorString = getString(R.string.error_no_decoder,
-                decoderInitializationException.mimeType);
+                    decoderInitializationException.mimeType);
           }
         } else {
           errorString = getString(R.string.error_instantiating_decoder,
-              decoderInitializationException.decoderName);
+                  decoderInitializationException.decoderName);
         }
       }
     }
@@ -467,7 +500,9 @@ public class PlayerActivity extends Activity implements OnClickListener, ExoPlay
     debugRootView.removeAllViews();
 
     retryButton.setVisibility(playerNeedsSource ? View.VISIBLE : View.GONE);
+    speedButton.setVisibility(playerNeedsSource ? View.GONE : View.VISIBLE);
     debugRootView.addView(retryButton);
+    debugRootView.addView(speedButton);
 
     if (player == null) {
       return;

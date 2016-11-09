@@ -27,6 +27,8 @@
 
   <string name="retry">Retry</string>
 
+  <string name="speed">Speed</string>
+
   <string name="selection_disabled">Disabled</string>
 
   <string name="selection_default">Default</string>
