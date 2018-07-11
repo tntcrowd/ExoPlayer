@@ -63,4 +63,14 @@ public final class WidevineUtil {
     return C.TIME_UNSET;
   }
 
+  public static boolean getForceMaxOfflineLicenseDuration(Map<String, String> optionalParameters) {
+    if (optionalParameters != null) {
+      String value = optionalParameters.get(DefaultDrmSessionManager.FORCE_MAX_LICENSE_DURATION_KEY);
+      if (value != null) {
+        return Boolean.parseBoolean(value);
+      }
+    }
+    return false;
+  }
+
 }

@@ -68,6 +68,13 @@ public class DefaultDrmSessionManager<T extends ExoMediaCrypto> implements DrmSe
   public static final String PLAYREADY_CUSTOM_DATA_KEY = "PRCustomData";
 
   /**
+   * The key to ignore {@link KeysExpiredException} in {@link DefaultDrmSession#doLicense(boolean)}
+   * below Kitkat in an optional parameter map. When this field is true,
+   * {@link DefaultDrmSession#getLicenseDurationRemainingSec()} return maximum value.
+   */
+  public static final String FORCE_MAX_LICENSE_DURATION_KEY = "ForceMaxLicenseDuration";
+
+  /**
    * Determines the action to be done after a session acquired. One of {@link #MODE_PLAYBACK},
    * {@link #MODE_QUERY}, {@link #MODE_DOWNLOAD} or {@link #MODE_RELEASE}.
    */

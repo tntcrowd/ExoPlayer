@@ -18,6 +18,9 @@ package com.google.android.exoplayer2.drm;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.media.NotProvisionedException;
+import android.os.Build;
+import android.os.Build.VERSION;
+import android.os.Build.VERSION_CODES;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
@@ -380,8 +383,11 @@ import org.checkerframework.checker.nullness.qual.RequiresNonNull;
     if (!C.WIDEVINE_UUID.equals(uuid)) {
       return Long.MAX_VALUE;
     }
-    Pair<Long, Long> pair =
-        Assertions.checkNotNull(WidevineUtil.getLicenseDurationRemainingSec(this));
+    if (VERSION.SDK_INT <= VERSION_CODES.KITKAT
+        && WidevineUtil.getForceMaxOfflineLicenseDuration(optionalKeyRequestParameters)) {
+      return Long.MAX_VALUE;
+    }
+    Pair<Long, Long> pair = WidevineUtil.getLicenseDurationRemainingSec(this);
     return Math.min(pair.first, pair.second);
   }
 
